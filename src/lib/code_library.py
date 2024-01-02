@@ -123,18 +123,14 @@ def get_Model():
 @st.cache_resource()
 def get_Data(_session):
     # # Open and collect options
-    options_dash  = _session.table("OPTIONS_DASHBOARD") 
-    options_query = _session.table("OPTIONS_QUERY")
+    options_query = _session.table("OPTIONS_QUERY_COMPLEX")
         
     #recieve options and their encodings and return
-    dash_rows  = options_dash.select(['URL', 'ENCODING']).filter(col('URL').isNotNull() & col('ENCODING').isNotNull()).to_pandas().values.tolist()
     query_rows = options_query.select(['RESULT_CACHE', 'ENCODING']).filter(col('RESULT_CACHE').isNotNull() & col('ENCODING').isNotNull()).to_pandas().values.tolist()
-    dash_opts  = [row[0] for row in dash_rows]
     query_opts = [row[0] for row in query_rows]
-    dash_enc   = [parseBinaryEncoding(bytearray(row[1])) for row in dash_rows]
     query_enc  = [parseBinaryEncoding(bytearray(row[1])) for row in query_rows]
 
-    return dash_enc, dash_opts, query_enc, query_opts
+    return query_enc, query_opts
 
 def env_Setup(_session, Title, Layout, SideBarState, Menu_Items, Title_Image_Path):
     # PC Icon
@@ -161,7 +157,7 @@ def env_Setup(_session, Title, Layout, SideBarState, Menu_Items, Title_Image_Pat
         st.image(Title_Image_Path)
 
     if(len(Title) > 0):
-        st.subheader(Title)
+        st.subheader(Title, divider='rainbow')
 
     # Open CSS file
     with open('src/css/style.css') as f:
@@ -169,7 +165,7 @@ def env_Setup(_session, Title, Layout, SideBarState, Menu_Items, Title_Image_Pat
     f.close()
 
     model = get_Model()
-    dash_enc, dash_opts, query_enc, query_opts = get_Data(_session)
+    query_enc, query_opts = get_Data(_session)
     
         # (re)-initialize current chat 
     if 'messages' not in st.session_state:
@@ -181,11 +177,11 @@ def env_Setup(_session, Title, Layout, SideBarState, Menu_Items, Title_Image_Pat
     if 'FeedbackText' not in st.session_state:
             st.session_state.FeedbackText = ''
 
-    return model, dash_enc, dash_opts, query_enc, query_opts, BotAvatar, UserAvatar
+    return model, query_enc, query_opts, BotAvatar, UserAvatar
 
 
 # run the prompt against the AI to recieve an answer
-def do_Get(prompt, _model, dash_enc, dash_opts, query_enc, query_opts):   
+def do_Get(prompt, _model, query_enc, query_opts):   
     #init 
     encoding = None
     
@@ -193,11 +189,8 @@ def do_Get(prompt, _model, dash_enc, dash_opts, query_enc, query_opts):
     if(prompt != ''):
         encoding = _model.encode(prompt)
     
-    # pick and return a dashboard answer based off options.json
-    sim = cosine_similarity([encoding], dash_enc)
-    dash_answer = dash_opts[sim[0].tolist().index(max(sim[0]))]
 
     # pick and return a query answer
     sim = cosine_similarity([encoding], query_enc)
     query_answer = query_opts[sim[0].tolist().index(max(sim[0]))]
-    return dash_answer, query_answer, max(sim[0])
+    return query_answer, max(sim[0])
